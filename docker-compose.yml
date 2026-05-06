@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: edm-postgres
+    environment:
+      POSTGRES_USER: edm
+      POSTGRES_PASSWORD: edm
+      POSTGRES_DB: edm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edm -d edm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./код/backend
+      dockerfile: Dockerfile
+    container_name: edm-backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://edm:edm@postgres:5432/edm}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      LLM_MODEL_EXTRACTION: ${LLM_MODEL_EXTRACTION:-anthropic/claude-sonnet-4.5}
+      LLM_MODEL_SEARCH: ${LLM_MODEL_SEARCH:-anthropic/claude-sonnet-4.5}
+      LLM_MODEL_DELAYS: ${LLM_MODEL_DELAYS:-anthropic/claude-sonnet-4.5}
+      LLM_MODEL_AUDIT: ${LLM_MODEL_AUDIT:-anthropic/claude-sonnet-4.5}
+      LLM_MODEL_COMPARISON: ${LLM_MODEL_COMPARISON:-anthropic/claude-opus-4.6}
+      LLM_MODEL_EMBEDDINGS: ${LLM_MODEL_EMBEDDINGS:-openai/text-embedding-3-small}
+      ENV: ${ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./код/backend/app:/app/app
+      - ./код/backend/тесты:/app/тесты
+      - ./код/backend/seed.py:/app/seed.py
+    command: uvicorn app.главный:приложение --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./код/frontend
+      dockerfile: Dockerfile
+    container_name: edm-frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./код/frontend/app:/app/app
+      - ./код/frontend/lib:/app/lib
+
+volumes:
+  postgres_data:
