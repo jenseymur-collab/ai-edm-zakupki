@@ -1,108 +1,161 @@
-# AI-EDM Закупки — Электронный документооборот с AI-слоем
+# AI-EDM Закупки
 
-MVP системы управления закупочными сделками: согласование документов, маршруты виз,
-семантический поиск и LLM-анализ на базе Claude (via OpenRouter).
+**Электронный документооборот закупок с AI-слоем**  
+MVP системы управления закупочными сделками для ООО «ФармПроизводство».
+
+GitHub: https://github.com/jenseymur-collab/ai-edm-zakupki
 
 ---
 
-## Быстрый старт (5 команд)
+## Что умеет система
+
+| Функциональность | Реализация |
+|---|---|
+| Список и карточки сделок | CRUD, статусы, KPI, суммы, поставщики |
+| Загрузка документов | Форма в UI, версионирование (активная + архив) |
+| Цепочки согласования (визы) | Маршруты по типу и сумме, одобрение/отклонение прямо из UI |
+| AI-извлечение реквизитов | LLM разбирает текст документа: стороны, суммы, ИНН, сроки |
+| Проверка полноты пакета | AI проверяет наличие всех обязательных документов по сделке |
+| Анализ просрочек | AI выявляет задержанные визы и предлагает действия |
+| Сравнение версий договора | LLM сравнивает две версии, выделяет изменения по пунктам |
+| Семантический поиск | pgvector cosine search, понимает смысл, не только ключевые слова |
+| Дашборд с алертами | KPI, статусы сделок, красный алерт при просроченных визах |
+
+---
+
+## Быстрый старт
+
+### Требования
+- Docker Desktop (версия 24+)
+- Ключ OpenRouter API — получить на [openrouter.ai](https://openrouter.ai)
+
+### 5 команд для запуска
 
 ```bash
-# 1. Перейти в папку проекта
-cd /Users/user/Documents/ai-edm-закупки
+# 1. Клонировать репозиторий
+git clone https://github.com/jenseymur-collab/ai-edm-zakupki.git
+cd ai-edm-zakupki
 
-# 2. Создать .env с ключом OpenRouter
-echo "OPENROUTER_API_KEY=sk-or-..." > .env
+# 2. Создать файл с переменными окружения
+cp .env.example .env
+# Открыть .env и вставить свой OPENROUTER_API_KEY
 
 # 3. Собрать и поднять все сервисы
 docker compose up -d --build
 
-# 4. Залить демо-данные (один раз)
+# 4. Загрузить демо-данные (один раз)
 docker compose exec backend python seed.py
 
-# 5. Открыть фронтенд
+# 5. Открыть приложение
 open http://localhost:3000
 ```
 
-Swagger UI бекенда: http://localhost:8000/docs
+**Swagger UI (API-документация):** http://localhost:8000/docs
+
+### После запуска — активировать семантический поиск
+
+Перейти в Swagger → `POST /ai/embeddings/backfill` → Execute.  
+Займёт ~20–30 секунд. После этого поиск на `/search` полностью работает.
 
 ---
 
-## Что показывает демо
+## Навигация по интерфейсу
 
-| Экран | Путь | Что работает |
+| Экран | URL | Описание |
 |---|---|---|
-| **Список сделок** | `/deals` | Таблица с пагинацией, статусы, суммы, поставщики |
-| **Карточка сделки** | `/deals/{id}` | 3 вкладки: Документы / Согласование / AI |
-| **Документы** | вкладка Документы | Активная + архивные версии, загрузка новой |
-| **Согласование** | вкладка Согласование | Цепочка виз: ожидает / одобрено / отклонено |
-| **AI-анализ** | вкладка AI | Полнота пакета, риски задержек, сравнение версий |
-| **Документ** | `/documents/{id}` | Текст + LLM-извлечение полей |
-| **Семантический поиск** | `/search` | Поиск по тексту документов (pgvector cosine) |
-| **Дашборд** | `/dashboard` | KPI, статусы сделок, лента событий |
+| Главная | `/` | Лендинг: разделы, AI-возможности, стек |
+| Сделки | `/deals` | Таблица с фильтрами и статусами |
+| Карточка сделки | `/deals/{id}` | Документы / Согласование / AI |
+| Документ | `/documents/{id}` | Текст + LLM-извлечение полей |
+| Семантический поиск | `/search` | Поиск по смыслу через pgvector |
+| Дашборд | `/dashboard` | KPI, алерты, лента событий |
 
 ---
 
 ## Архитектура
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Browser → Next.js 14 (port 3000)                   │
-│            ↓  fetch http://localhost:8000            │
-│  FastAPI + SQLAlchemy 2.0 (port 8000)               │
-│            ↓                                         │
-│  PostgreSQL 16 + pgvector (port 5432)               │
-│                                                      │
-│  AI: OpenRouter → anthropic/claude-sonnet-4-5        │
-│      Embeddings: openai/text-embedding-3-small       │
-└─────────────────────────────────────────────────────┘
+Браузер
+  │
+  ▼
+Next.js 14 (порт 3000)          ← App Router, TypeScript, Tailwind CSS
+  │  fetch NEXT_PUBLIC_API_URL
+  ▼
+FastAPI (порт 8000)              ← Python 3.12, SQLAlchemy 2.0 async, Pydantic v2
+  │  asyncpg
+  ▼
+PostgreSQL 16 + pgvector         ← Vector(1536), cosine similarity search
+  
+  + OpenRouter API               ← LLM: claude-sonnet / claude-opus
+                                 ← Embeddings: text-embedding-3-small
 ```
 
-### Стек
+### Структура базы данных
 
-- **Backend**: Python 3.12, FastAPI, SQLAlchemy 2.0 async, Pydantic v2
-- **DB**: PostgreSQL 16 с расширением pgvector (Vector(1536))
-- **AI**: OpenRouter API (LLM + embeddings), идентификаторы — кириллица (ADR)
-- **Frontend**: Next.js 14 App Router, TypeScript, Tailwind CSS 3
-- **Инфра**: Docker Compose, hot-reload в dev-режиме
+Пять PostgreSQL-схем:
 
-### Физические схемы БД
+| Схема | Таблицы | Назначение |
+|---|---|---|
+| `пользователи` | пользователи, роли | Учётные записи и права |
+| `сделки` | сделки, поставщики | Закупочные сделки |
+| `документы` | документы, извлечённые_поля, эмбеддинги | Документооборот и AI |
+| `согласование` | маршруты, шаги, визы | Цепочки согласования |
+| `аудит` | события | Лента всех действий |
 
-| Схема | Содержимое |
-|---|---|
-| `пользователи` | Пользователи, роли |
-| `сделки` | Сделки, поставщики |
-| `документы` | Документы, извлечённые поля, эмбеддинги |
-| `согласование` | Маршруты, шаги, визы |
-| `аудит` | Лента событий |
+### AI-эндпоинты
+
+```
+POST /ai/documents/{id}/extract       — LLM извлекает реквизиты из документа
+POST /ai/search                       — семантический поиск (pgvector)
+GET  /ai/deals/{id}/completeness      — проверка полноты пакета документов
+GET  /ai/deals/{id}/delays            — анализ просрочек и рисков по визам
+POST /ai/documents/compare            — LLM сравнивает две версии договора
+POST /ai/embeddings/backfill          — создать эмбеддинги для всех документов
+```
 
 ---
 
-## AI-эндпоинты
+## Принятые архитектурные решения
 
-```
-POST /ai/documents/{id}/extract      — LLM извлекает поля по типу документа
-POST /ai/search                      — семантический поиск по документам
-GET  /ai/deals/{id}/completeness     — проверка полноты пакета (7 типов)
-GET  /ai/deals/{id}/delays           — анализ просрочек и рисков виз
-POST /ai/documents/compare           — сравнение двух версий документа
-```
+### ADR-1: Кириллические идентификаторы в Python
+Python 3 поддерживает Unicode в именах переменных и функций.  
+Весь код бекенда написан на кириллице (функции, переменные, классы) — это намеренное решение для читаемости в предметной области.  
+**Исключение:** URL path-параметры — только ASCII (ограничение Starlette/ASGI).
+
+### ADR-2: pgvector для семантического поиска
+Вместо отдельного векторного хранилища (Pinecone, Weaviate) используется расширение pgvector для PostgreSQL.  
+Одна БД — меньше инфраструктуры, проще деплой. Для MVP-масштаба достаточно.
+
+### ADR-3: BackgroundTasks для эмбеддингов
+После загрузки документа эмбеддинг создаётся в фоне (FastAPI BackgroundTasks) — не блокирует HTTP-ответ.  
+Используется отдельная сессия БД через `фабрика_сессий()`.
+
+### ADR-4: OpenRouter как единая точка LLM
+Все LLM-вызовы идут через OpenRouter API (совместим с OpenAI SDK).  
+Позволяет менять модели через переменные окружения без изменения кода.
+
+### ADR-5: Next.js App Router без SSR для API-запросов
+Все запросы к бекенду делаются на клиенте (`'use client'` + `useEffect`).  
+Упрощает деплой: фронтенд — чисто статический SPA поверх API.
 
 ---
 
 ## Переменные окружения
 
-| Переменная | По умолчанию | Описание |
+Скопировать `.env.example` → `.env` и заполнить:
+
+| Переменная | Обязательна | Описание |
 |---|---|---|
-| `OPENROUTER_API_KEY` | — | **Обязательно.** Ключ OpenRouter |
-| `DATABASE_URL` | postgresql+asyncpg://edm:edm@postgres:5432/edm | URL базы данных |
-| `LLM_MODEL_EXTRACTION` | anthropic/claude-sonnet-4-5 | Модель для извлечения полей |
-| `LLM_MODEL_SEARCH` | anthropic/claude-sonnet-4-5 | Модель для поиска |
-| `LLM_MODEL_DELAYS` | anthropic/claude-sonnet-4-5 | Модель для анализа задержек |
-| `LLM_MODEL_AUDIT` | anthropic/claude-sonnet-4-5 | Модель для аудита |
-| `LLM_MODEL_COMPARISON` | anthropic/claude-opus-4-6 | Модель для сравнения версий |
-| `LLM_MODEL_EMBEDDINGS` | openai/text-embedding-3-small | Модель эмбеддингов |
-| `NEXT_PUBLIC_API_URL` | http://localhost:8000 | URL бекенда для браузера |
+| `OPENROUTER_API_KEY` | ✅ | API-ключ OpenRouter |
+| `DATABASE_URL` | нет | По умолчанию: `postgresql+asyncpg://edm:edm@postgres:5432/edm` |
+| `OPENROUTER_BASE_URL` | нет | По умолчанию: `https://openrouter.ai/api/v1` |
+| `LLM_MODEL_EXTRACTION` | нет | По умолчанию: `anthropic/claude-sonnet-4-5` |
+| `LLM_MODEL_SEARCH` | нет | По умолчанию: `anthropic/claude-sonnet-4-5` |
+| `LLM_MODEL_DELAYS` | нет | По умолчанию: `anthropic/claude-sonnet-4-5` |
+| `LLM_MODEL_AUDIT` | нет | По умолчанию: `anthropic/claude-sonnet-4-5` |
+| `LLM_MODEL_COMPARISON` | нет | По умолчанию: `anthropic/claude-opus-4-6` |
+| `LLM_MODEL_EMBEDDINGS` | нет | По умолчанию: `openai/text-embedding-3-small` |
+| `NEXT_PUBLIC_API_URL` | нет | URL бекенда для браузера. По умолчанию: `http://localhost:8000` |
 
 ---
 
@@ -110,31 +163,50 @@ POST /ai/documents/compare           — сравнение двух верси�
 
 ```
 ai-edm-закупки/
-├── docker-compose.yml
-├── .env                          # OPENROUTER_API_KEY (не коммитить)
+├── docker-compose.yml              # локальный запуск всех сервисов
+├── .env                            # секреты — не коммитить (в .gitignore)
+├── .env.example                    # шаблон для новых разработчиков
+├── .gitignore
+├── Makefile
+├── README.md
 ├── код/
 │   ├── backend/
-│   │   ├── app/
-│   │   │   ├── главный.py        # FastAPI + CORS + роуты
-│   │   │   ├── конфиг.py         # Pydantic Settings
-│   │   │   ├── база.py           # async engine + sessionmaker
-│   │   │   ├── llm_client.py     # OpenRouter (единая точка выхода)
-│   │   │   ├── модели/           # SQLAlchemy ORM
-│   │   │   ├── модули/
-│   │   │   │   ├── сделки/       # роутер + схемы + сервисы
-│   │   │   │   ├── документы/    # роутер + схемы + сервисы AI
-│   │   │   │   └── согласование/ # роутер + схемы
-│   │   │   └── api/
-│   │   │       ├── __init__.py   # регистрация роутеров
-│   │   │       └── ai_роутер.py  # /ai/* эндпоинты
-│   │   └── seed.py               # демо-данные
+│   │   ├── Dockerfile
+│   │   ├── railway.toml            # конфиг деплоя Railway
+│   │   ├── pyproject.toml
+│   │   ├── seed.py                 # демо-данные
+│   │   └── app/
+│   │       ├── главный.py          # FastAPI app, CORS, регистрация роутеров
+│   │       ├── конфиг.py           # Pydantic Settings
+│   │       ├── общее/
+│   │       │   └── база_данных.py  # async engine, sessionmaker, фабрика_сессий
+│   │       ├── llm_client.py       # единая точка выхода в OpenRouter
+│   │       ├── модели/             # SQLAlchemy ORM-модели
+│   │       ├── модули/
+│   │       │   ├── сделки/         # роутер, схемы, сервисы
+│   │       │   ├── документы/      # роутер, схемы, AI-сервисы, эмбеддинги
+│   │       │   └── согласование/   # роутер, схемы, маршруты виз
+│   │       └── api/
+│   │           ├── __init__.py     # регистрация всех роутеров
+│   │           └── ai_роутер.py    # /ai/* эндпоинты
 │   └── frontend/
-│       ├── app/                  # Next.js App Router страницы
-│       ├── lib/
-│       │   ├── api.ts            # типизированный API-клиент
-│       │   └── helpers.ts        # форматирование, константы
-│       └── next.config.mjs
-└── промты/                       # логи сессий разработки
+│       ├── Dockerfile              # multi-stage production build
+│       ├── railway.toml            # конфиг деплоя Railway
+│       ├── next.config.ts          # output: standalone
+│       ├── app/                    # Next.js App Router страницы
+│       │   ├── page.tsx            # лендинг-страница
+│       │   ├── layout.tsx          # навигация, общий layout
+│       │   ├── deals/              # список и карточки сделок
+│       │   ├── documents/          # карточка документа
+│       │   ├── search/             # семантический поиск
+│       │   └── dashboard/          # дашборд с KPI
+│       └── lib/
+│           ├── api.ts              # типизированный API-клиент
+│           └── helpers.ts          # форматирование дат, сумм
+├── документация/                   # ADR и технические заметки
+├── демо-данные/                    # SQL seed-скрипты
+├── промты/                         # логи всех сессий разработки
+└── тесты/                          # pytest (в разработке)
 ```
 
 ---
@@ -145,14 +217,29 @@ ai-edm-закупки/
 # Логи всех сервисов
 docker compose logs -f
 
-# Логи только бекенда / фронтенда
+# Логи конкретного сервиса
 docker compose logs -f backend
 docker compose logs -f frontend
 
-# Перезапуск после изменений (volumes монтированы — обычно достаточно)
+# Перезапуск после изменений в коде
 docker compose restart backend
-docker compose restart frontend
 
-# Полная пересборка (при изменении package.json / requirements.txt)
+# Полная пересборка (при изменении зависимостей)
 docker compose up -d --build
+
+# Запустить только postgres (для локальной разработки без Docker)
+docker compose up -d postgres
 ```
+
+---
+
+## Технологический стек
+
+| Слой | Технологии |
+|---|---|
+| Backend | Python 3.12, FastAPI 0.115, SQLAlchemy 2.0 async, Pydantic v2, Alembic |
+| Database | PostgreSQL 16, pgvector (cosine similarity, Vector(1536)) |
+| AI/LLM | OpenRouter API, Claude Sonnet/Opus, text-embedding-3-small |
+| Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS 3 |
+| Инфраструктура | Docker Compose, Uvicorn, asyncpg |
+| Деплой | Railway (backend + frontend + postgres) |
