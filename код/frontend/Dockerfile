@@ -2,13 +2,12 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY package.json ./
 RUN npm install
 
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
-# NEXT_PUBLIC_API_URL передаётся как build arg для статической вставки
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
@@ -24,7 +23,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+RUN mkdir -p /app/public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
