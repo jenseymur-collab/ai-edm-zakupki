@@ -79,3 +79,24 @@ GitHub-репозиторий: https://github.com/jenseymur-collab/ai-edm-zakupk
 - Сервис `frontend` — Next.js из `код/frontend/`, `NEXT_PUBLIC_API_URL` = URL бекенда
 
 **Статус:** настройка Railway Dashboard — следующий шаг
+
+---
+
+### Block B — Railway (ЗАВЕРШЁН ✅)
+
+**Проблемы и решения в процессе деплоя:**
+- `$PORT` не раскрывался в railway.toml → обёрнуто в `bash -c '... --port ${PORT:-8000}'`
+- Railway назначил порт 8080 вместо 8000/3000 → домены перегенерированы на порт 8080
+- Next.js уязвимость CVE-2025-55184 → обновлён до 14.2.35
+- `npm ci` падал без lockfile → заменён на `npm install`
+- `.next/standalone` не найден → добавлен `next.config.mjs` с `output: 'standalone'`
+- `seed.py` не копировался в Docker-образ → добавлен `COPY seed.py ./` в Dockerfile
+- `NEXT_PUBLIC_API_URL` не был установлен во фронтенд-сервисе → добавлен в Variables
+- CORS не пускал Railway-домен → добавлен в `allow_origins` в главный.py
+
+**Финальные URL:**
+- Фронтенд: https://earnest-playfulness-production-7b37.up.railway.app
+- Бекенд: https://ai-edm-zakupki-production.up.railway.app
+- GitHub: https://github.com/jenseymur-collab/ai-edm-zakupki
+
+**Статус:** Railway деплой полностью завершён, демо-данные залиты, эмбеддинги созданы ✅

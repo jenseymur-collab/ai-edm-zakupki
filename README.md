@@ -243,3 +243,32 @@ docker compose up -d postgres
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind CSS 3 |
 | Инфраструктура | Docker Compose, Uvicorn, asyncpg |
 | Деплой | Railway (backend + frontend + postgres) |
+
+---
+
+## Продакшн деплой (Railway)
+
+Система задеплоена на Railway и доступна публично:
+
+| Сервис | URL |
+|---|---|
+| **Фронтенд** | https://earnest-playfulness-production-7b37.up.railway.app |
+| **Бекенд API** | https://ai-edm-zakupki-production.up.railway.app |
+| **Swagger UI** | https://ai-edm-zakupki-production.up.railway.app/docs |
+
+### Архитектура на Railway
+
+Три сервиса в одном Railway-проекте:
+- `pgvector` — PostgreSQL 16 + pgvector (кастомный Docker-образ `pgvector/pgvector:pg16`)
+- `backend` — FastAPI, root directory: `код/backend`
+- `frontend` — Next.js 14, root directory: `код/frontend`
+
+### После первого деплоя (один раз)
+
+```bash
+# 1. Залить демо-данные
+curl -X POST https://ai-edm-zakupki-production.up.railway.app/ai/admin/seed
+
+# 2. Создать эмбеддинги для поиска
+curl -X POST https://ai-edm-zakupki-production.up.railway.app/ai/embeddings/backfill
+```
