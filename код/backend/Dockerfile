@@ -23,6 +23,7 @@ RUN pip install --upgrade pip && \
 
 # Тесты копируем отдельным слоем
 COPY тесты ./тесты
+COPY seed.py ./
 
 EXPOSE 8000
 
