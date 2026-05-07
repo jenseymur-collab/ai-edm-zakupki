@@ -205,3 +205,18 @@ async def сравнение_документов_эндпоинт(
 
     результат = await сравнить_версии(д1, д2, сессия)
     return ОтветСравнения(**результат)
+
+
+# ── Admin: seed ───────────────────────────────────────────────────────────────
+
+@роутер.post("/admin/seed", tags=["Admin"])
+async def запустить_seed():
+    """Залить демо-данные (один раз). Повторный вызов безопасен — пропустит если данные есть."""
+    try:
+        import sys, os
+        sys.path.insert(0, "/app")
+        from seed import main
+        await main()
+        return {"статус": "ok", "сообщение": "Seed выполнен успешно"}
+    except Exception as е:
+        raise HTTPException(status_code=500, detail=str(е))
