@@ -53,7 +53,7 @@ async def жизненный_цикл(приложение_arg: FastAPI) -> Asyn
 
 приложение.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://earnest-playfulness-production-7b37.up.railway.app"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
